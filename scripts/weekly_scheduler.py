@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""
+Weekly Audit Scheduler - Generates weekly business review every Monday.
+
+Creates weekly audit document with:
+- Revenue summary
+- Task completion rate
+- Bottlenecks identified
+- Proactive suggestions
+
+Usage:
+    python scripts/weekly_scheduler.py ./AI_Employee_Vault
+"""
+
+import os
+import sys
+from pathlib import Path
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+def count_files(folder: Path, extension: str = '.md') -> int:
+    """Count files with extension in folder."""
+    if not folder.exists():
+        return 0
+    return len([f for f in folder.iterdir() if f.suffix == extension])
+
+def get_weeks_completions(done_folder: Path, days: int = 7) -> list:
+    """Get files completed in the last N days."""
+    if not done_folder.exists():
+        return []
+    
+    cutoff = datetime.now() - timedelta(days=days)
+    items = []
+    
+    for f in done_folder.glob('*.md'):
+        try:
+            mtime = datetime.fromtimestamp(f.stat().st_mtime)
+            if mtime >= cutoff:
+                items.append({
+                    'name': f.name,
+                    'completed': mtime
+                })
+        except:
+            pass
+    
+    return sorted(items, key=lambda x: x['completed'], reverse=True)
+
+def get_active_projects(business_goals: Path) -> list:
+    """Get active projects from Business_Goals.md."""
+    if not business_goals.exists():
+        return []
+    
+    content = business_goals.read_text(encoding='utf-8')
+    projects = []
+    
+    # Simple parsing - look for project table
+    in_projects = False
+    for line in content.split('\n'):
+        if 'Active Projects' in line or '## 📦 Active Projects' in line:
+            in_projects = True
+            continue
+        if in_projects and line.startswith('|'):
+            if 'Project' not in line and '---' not in line:
+                parts = line.split('|')
+                if len(parts) >= 2:
+                    projects.append(parts[1].strip())
+        if in_projects and line.startswith('##') and 'Active Projects' not in line:
+            break
+    
+    return [p for p in projects if p and p != '-']
+
+def generate_weekly_audit(vault_path: str):
+    """Generate weekly audit document."""
+    vault = Path(vault_path)
+    briefings = vault / 'Briefings'
+    briefings.mkdir(exist_ok=True)
+    
+    # Get data
+    done = vault / 'Done'
+    needs_action = vault / 'Needs_Action'
+    pending_approval = vault / 'Pending_Approval'
+    business_goals = vault / 'Business_Goals.md'
+    
+    # Calculate date range
+    today = datetime.now()
+    last_week = today - timedelta(days=7)
+    
+    weeks_completions = get_weeks_completions(done)
+    active_projects = get_active_projects(business_goals)
+    pending_count = count_files(needs_action)
+    approval_count = count_files(pending_approval)
+    
+    # Create audit
+    content = f"""---
+created: {datetime.now().isoformat()}
+type: weekly_audit
+period: {last_week.strftime('%Y-%m-%d')} to {today.strftime('%Y-%m-%d')}
+---
+
+# Weekly Audit
+
+## Period
+{last_week.strftime('%B %d')} - {today.strftime('%B %d, %Y')}
+
+---
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Tasks Completed | {len(weeks_completions)} |
+| Pending Items | {pending_count} |
+| Pending Approvals | {approval_count} |
+| Active Projects | {len(active_projects)} |
+
+---
+
+## Completed This Week
+
+"""
+    
+    if weeks_completions:
+        for item in weeks_completions[:20]:  # Show last 20
+            date_str = item['completed'].strftime('%a %m/%d')
+            content += f"- [x] {item['name']} ({date_str})\n"
+    else:
+        content += "- No items completed this week\n"
+    
+    content += f"""
+
+## Revenue Summary
+
+*Add revenue data from accounting system*
+
+| Period | Target | Actual | % |
+|--------|--------|--------|---|
+| This Week | $2,500 | $0 | 0% |
+| MTD | $10,000 | $0 | 0% |
+
+---
+
+## Active Projects
+
+"""
+    
+    if active_projects:
+        for project in active_projects:
+            content += f"- [ ] {project}\n"
+    else:
+        content += "- No active projects\n"
+    
+    content += f"""
+
+## Bottlenecks
+
+*Identify tasks that took too long*
+
+| Task | Expected | Actual | Delay |
+|------|----------|--------|-------|
+| - | - | - | - |
+
+---
+
+## Proactive Suggestions
+
+### Cost Optimization
+
+*Review subscriptions and recurring expenses*
+
+- [ ] Audit software subscriptions
+- [ ] Check for unused services
+- [ ] Negotiate better rates
+
+### Process Improvement
+
+*Identify automation opportunities*
+
+- [ ] Review manual tasks for automation
+- [ ] Document repeatable processes
+- [ ] Create templates for common actions
+
+### Growth Opportunities
+
+*Follow up on leads and opportunities*
+
+- [ ] Follow up with pending leads
+- [ ] Request testimonials from happy clients
+- [ ] Plan next week's content
+
+---
+
+## Next Week's Focus
+
+1. [ ] Priority 1
+2. [ ] Priority 2
+3. [ ] Priority 3
+
+---
+
+*Generated by AI Employee Weekly Scheduler*
+"""
+    
+    # Write file
+    output = briefings / f'{today.strftime("%Y-%m-%d")}_weekly_audit.md'
+    output.write_text(content)
+    
+    print(f"✓ Weekly audit created: {output}")
+    return output
+
+
+def main():
+    """Main entry point."""
+    # Use environment variable or command line argument
+    vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+    
+    if len(sys.argv) > 1:
+        vault_path = sys.argv[1]
+    
+    generate_weekly_audit(vault_path)
+
+
+if __name__ == '__main__':
+    main()
