@@ -13,11 +13,19 @@ This implementation completes all **Bronze Tier** requirements:
 - ✅ **Qwen Code integration** - reads from and writes to the vault
 - ✅ **Basic folder structure**: `/Inbox`, `/Needs_Action`, `/Done`
 - ✅ **Agent Skills ready** - all AI functionality can be converted to Agent Skills
+- ✅ **Environment-based configuration** with `.env` file
+- ✅ **Centralized logging** with configurable log levels
 
 ## 📁 Project Structure
 
 ```
 Personal-AI-Employee/
+├── .env                        # Environment configuration (create from .env.example)
+├── .gitignore                  # Git ignore rules
+├── requirements.txt            # Python dependencies
+├── credentials.json            # Gmail OAuth credentials (download from Google Cloud)
+├── token.json                  # Gmail OAuth token (auto-generated)
+│
 ├── AI_Employee_Vault/          # Obsidian vault
 │   ├── Dashboard.md            # Real-time status dashboard
 │   ├── Company_Handbook.md     # Rules of engagement
@@ -36,8 +44,21 @@ Personal-AI-Employee/
 ├── scripts/
 │   ├── base_watcher.py         # Abstract base class for watchers
 │   ├── filesystem_watcher.py   # File system monitoring script
+│   ├── gmail_watcher.py        # Gmail monitoring (Silver Tier)
+│   ├── whatsapp_watcher.py     # WhatsApp monitoring (Silver Tier)
+│   ├── linkedin_watcher.py     # LinkedIn monitoring (Gold Tier)
 │   ├── orchestrator.py         # Master orchestration process
-│   └── test_watcher.py         # Test script for watcher
+│   ├── email_mcp_server.py     # Email MCP server for sending
+│   ├── linkedin_mcp_server.py  # LinkedIn MCP server for posting
+│   ├── gmail_auth.py           # Gmail OAuth authorization
+│   ├── daily_scheduler.py      # Daily briefing generator
+│   ├── weekly_scheduler.py     # Weekly audit generator
+│   ├── run_all_watchers.py     # Start all watchers at once
+│   │
+│   ├── simple_email_sender.py  # Direct email sender (testing)
+│   ├── quick_linkedin_post.py  # Direct LinkedIn poster (testing)
+│   │
+│   └── test_*.py               # Test scripts (marked with TEST SCRIPT header)
 │
 └── README.md                   # This file
 ```
@@ -49,17 +70,122 @@ Personal-AI-Employee/
 - **Python 3.13+** - [Download](https://www.python.org/downloads/)
 - **Qwen Code** - Active subscription
 - **Obsidian** (optional) - [Download](https://obsidian.md/download)
+- **Git** (optional) - For version control
 
 ### Installation
 
-1. **Clone or download this repository**
+#### Step 1: Clone or Download the Repository
 
-2. **Verify Python version**
-   ```bash
-   python --version
-   ```
+```bash
+git clone <repository-url>
+cd Personal-AI-Employee
+```
 
-3. **No additional dependencies required** - Bronze Tier uses only Python standard library
+#### Step 2: Create Virtual Environment (Recommended)
+
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
+
+# macOS/Linux
+python3 -m venv venv
+source venv/bin/activate
+```
+
+#### Step 3: Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### Step 4: Install Playwright (for WhatsApp/LinkedIn features)
+
+```bash
+playwright install chromium
+```
+
+#### Step 5: Configure Environment
+
+1. Copy the `.env` file (already created in project root)
+2. Edit values as needed for your setup
+
+```bash
+# The .env file contains:
+# - Vault path configuration
+# - Gmail credentials paths
+# - Session storage paths
+# - MCP server ports
+# - Check intervals
+# - Log levels
+```
+
+#### Step 6: Set Up Gmail (for Silver Tier)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Enable Gmail API
+4. Create OAuth 2.0 credentials (Desktop app)
+5. Download `credentials.json` and place in project root
+6. Run authorization:
+
+```bash
+python scripts/gmail_auth.py
+```
+
+#### Step 7: Verify Installation
+
+```bash
+# Test the file system watcher
+python scripts/test_watcher.py
+```
+
+### Configuration (.env File)
+
+The `.env` file controls all runtime configuration:
+
+```ini
+# ===========================================
+# GMAIL CONFIGURATION
+# ===========================================
+GMAIL_CREDENTIALS_PATH=credentials.json
+GMAIL_TOKEN_PATH=token.json
+
+# ===========================================
+# LINKEDIN CONFIGURATION
+# ===========================================
+LINKEDIN_SESSION_PATH=./linkedin_session
+LINKEDIN_MCP_PORT=8810
+
+# ===========================================
+# VAULT CONFIGURATION
+# ===========================================
+VAULT_PATH=./AI_Employee_Vault
+
+# ===========================================
+# MCP SERVER CONFIGURATION
+# ===========================================
+EMAIL_MCP_PORT=8809
+PLAYWRIGHT_MCP_PORT=8808
+
+# ===========================================
+# WHATSAPP CONFIGURATION
+# ===========================================
+WHATSAPP_SESSION_PATH=./whatsapp_session
+
+# ===========================================
+# RUNTIME CONFIGURATION
+# ===========================================
+DRY_RUN=false
+LOG_LEVEL=INFO
+
+# Check intervals (seconds)
+FILESYSTEM_CHECK_INTERVAL=30
+GMAIL_CHECK_INTERVAL=120
+WHATSAPP_CHECK_INTERVAL=30
+LINKEDIN_CHECK_INTERVAL=300
+ORCHESTRATOR_CHECK_INTERVAL=30
+```
 
 ### Running the AI Employee
 
@@ -243,15 +369,56 @@ The `Dashboard.md` provides real-time status:
 
 ### Credential Handling
 
-- No credentials stored in vault
-- Environment variables for API keys (for Silver/Gold tier)
-- All actions logged in `Logs/`
+- **Never commit credentials**: `credentials.json` and `token.json` are gitignored
+- **Environment variables**: All sensitive paths configured via `.env` file
+- **OAuth tokens**: Stored locally, refresh automatically
+- **Session data**: Browser sessions stored in local folders (gitignored)
+
+### .env File Security
+
+```bash
+# NEVER commit .env to version control
+# The .env file contains:
+# - File paths for credentials
+# - MCP server ports
+# - Session storage locations
+
+# Best practices:
+# 1. Keep .env out of version control (already in .gitignore)
+# 2. Use different .env files for dev/staging/production
+# 3. Set restrictive file permissions: chmod 600 .env
+# 4. Use secrets management in production
+```
 
 ### Data Boundaries
 
 - All data stays local in the vault
 - No external sync required for Bronze tier
 - Files processed remain on your machine
+- Logs stored locally in `AI_Employee_Vault/Logs/`
+
+### MCP Server Security
+
+- MCP servers run on localhost only (not exposed externally)
+- Default ports: Email (8809), LinkedIn (8810), Playwright (8808)
+- Use firewall rules to block external access if needed
+
+### Human-in-the-Loop (HITL)
+
+For sensitive actions, the system requires human approval:
+1. Action requests created in `Pending_Approval/`
+2. User reviews and moves to `Approved/` or `Rejected/`
+3. Only approved actions are executed
+
+### Recommended Security Practices
+
+1. **Use a dedicated Google account** for API access
+2. **Limit OAuth scopes** to only what's needed
+3. **Review logs regularly** in `AI_Employee_Vault/Logs/`
+4. **Enable DRY_RUN mode** for testing new features
+5. **Backup your vault** regularly
+6. **Use strong passwords** for any connected accounts
+7. **Keep dependencies updated**: `pip install --upgrade -r requirements.txt`
 
 ## 🛠️ Troubleshooting
 
