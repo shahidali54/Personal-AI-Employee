@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Test script to verify the FileSystemWatcher works correctly.
+TEST SCRIPT - Test FileSystemWatcher
+
+This is a test script for verifying the FileSystemWatcher functionality.
+Not required for production use.
 
 Usage:
     python test_watcher.py
@@ -11,9 +14,14 @@ This script:
 3. Verifies the action file was created in Needs_Action
 """
 
+import os
 import time
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -23,7 +31,7 @@ from filesystem_watcher import FileSystemWatcher, FileDropItem
 
 def test_watcher():
     """Test the file system watcher."""
-    vault_path = Path('./AI_Employee_Vault').absolute()
+    vault_path = Path(os.getenv('VAULT_PATH', './AI_Employee_Vault')).absolute()
     print(f"Testing watcher with vault: {vault_path}")
     
     # Create watcher
