@@ -20,10 +20,15 @@ import re
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Dict
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
@@ -35,14 +40,20 @@ class Orchestrator:
     Coordinates between watchers, Qwen Code, and the vault.
     """
     
-    def __init__(self, vault_path: str, check_interval: int = 30):
+    def __init__(self, vault_path: str = None, check_interval: int = None):
         """
         Initialize the orchestrator.
-        
+
         Args:
-            vault_path: Path to the Obsidian vault root
-            check_interval: Seconds between checks (default: 30)
+            vault_path: Path to the Obsidian vault root (default: from env VAULT_PATH)
+            check_interval: Seconds between checks (default: from env ORCHESTRATOR_CHECK_INTERVAL or 30)
         """
+        # Use environment variables if not provided
+        if vault_path is None:
+            vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+        if check_interval is None:
+            check_interval = int(os.getenv('ORCHESTRATOR_CHECK_INTERVAL', '30'))
+        
         self.vault_path = Path(vault_path).absolute()
         self.check_interval = check_interval
         self.logger = logging.getLogger('Orchestrator')
@@ -379,12 +390,12 @@ Refer to [[Company_Handbook]] for rules and guidelines.
     def process_approved_tasks(self):
         """Process tasks that have been approved."""
         approved = self.get_approved_tasks()
-        
+
         for task_file in approved:
             self.logger.info(f"Processing approved task: {task_file.name}")
             
-            # Read the approved task
-            content = task_file.read_text()
+            # Read the approved task (UTF-8 encoding)
+            content = task_file.read_text(encoding='utf-8')
             
             # Execute the approved action (for Bronze Tier, just log it)
             self.log_action(
@@ -434,16 +445,16 @@ Refer to [[Company_Handbook]] for rules and guidelines.
 
 def main():
     """Run the orchestrator."""
-    # Default vault path
-    vault_path = './AI_Employee_Vault'
-    
+    # Use environment variable or command line argument
+    vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+
     # Allow override from command line
     if len(sys.argv) > 1:
         vault_path = sys.argv[1]
-    
-    # Check interval in seconds
-    check_interval = 30
-    
+
+    # Check interval from environment or default (30 seconds)
+    check_interval = int(os.getenv('ORCHESTRATOR_CHECK_INTERVAL', '30'))
+
     orchestrator = Orchestrator(vault_path, check_interval)
     orchestrator.run()
 
