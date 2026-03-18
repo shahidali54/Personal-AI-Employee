@@ -13,11 +13,17 @@ When a file is dropped into /Inbox, this watcher:
 3. Copies the original file for processing
 """
 
+import os
+import sys
 import shutil
 import hashlib
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from base_watcher import BaseWatcher
 
@@ -57,14 +63,20 @@ class FileSystemWatcher(BaseWatcher):
     Files dropped into /Inbox trigger creation of action files in /Needs_Action.
     """
     
-    def __init__(self, vault_path: str, check_interval: int = 30):
+    def __init__(self, vault_path: str = None, check_interval: int = None):
         """
         Initialize the file system watcher.
-        
+
         Args:
-            vault_path: Path to the Obsidian vault root
-            check_interval: Seconds between checks (default: 30 for files)
+            vault_path: Path to the Obsidian vault root (default: from env VAULT_PATH)
+            check_interval: Seconds between checks (default: from env FILESYSTEM_CHECK_INTERVAL or 30)
         """
+        # Use environment variables if not provided
+        if vault_path is None:
+            vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+        if check_interval is None:
+            check_interval = int(os.getenv('FILESYSTEM_CHECK_INTERVAL', '30'))
+        
         super().__init__(vault_path, check_interval)
         self.drop_folder = self.inbox  # Files dropped in Inbox
         self.files_folder = self.vault_path / 'Files'  # Store processed files here
@@ -234,18 +246,16 @@ Add notes about this file here
 
 def main():
     """Run the file system watcher."""
-    import sys
-    
-    # Default vault path
-    vault_path = './AI_Employee_Vault'
-    
+    # Use environment variable or command line argument
+    vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+
     # Allow override from command line
     if len(sys.argv) > 1:
         vault_path = sys.argv[1]
-    
-    # Check interval in seconds (30 for files)
-    check_interval = 30
-    
+
+    # Check interval from environment or default (30 seconds for files)
+    check_interval = int(os.getenv('FILESYSTEM_CHECK_INTERVAL', '30'))
+
     watcher = FileSystemWatcher(vault_path, check_interval)
     watcher.run()
 
