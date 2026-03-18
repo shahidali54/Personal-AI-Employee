@@ -12,6 +12,7 @@ All Watchers follow this pattern:
 3. Track processed items to avoid duplicates
 """
 
+import os
 import time
 import logging
 from pathlib import Path
@@ -19,9 +20,15 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Any, Optional
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Configure logging
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
@@ -35,21 +42,25 @@ class BaseWatcher(ABC):
     - create_action_file(item): Create .md file in Needs_Action folder
     """
     
-    def __init__(self, vault_path: str, check_interval: int = 60):
+    def __init__(self, vault_path: str = None, check_interval: int = 60):
         """
         Initialize the watcher.
-        
+
         Args:
-            vault_path: Path to the Obsidian vault root
+            vault_path: Path to the Obsidian vault root (default: from env VAULT_PATH)
             check_interval: Seconds between checks (default: 60)
         """
+        # Use environment variable if vault_path not provided
+        if vault_path is None:
+            vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+        
         self.vault_path = Path(vault_path)
         self.needs_action = self.vault_path / 'Needs_Action'
         self.inbox = self.vault_path / 'Inbox'
         self.check_interval = check_interval
         self.logger = logging.getLogger(self.__class__.__name__)
         self.processed_ids: set = set()
-        
+
         # Ensure directories exist
         self.needs_action.mkdir(parents=True, exist_ok=True)
         self.inbox.mkdir(parents=True, exist_ok=True)
@@ -148,19 +159,18 @@ class BaseWatcher(ABC):
             raise
 
 
-def run_watcher(watcher_class: type, vault_path: str, check_interval: int = 60):
+def run_watcher(watcher_class: type, vault_path: str = None, check_interval: int = 60):
     """
     Helper function to instantiate and run a watcher.
-    
+
     Args:
         watcher_class: Class of watcher to instantiate
-        vault_path: Path to Obsidian vault
+        vault_path: Path to Obsidian vault (default: from env VAULT_PATH)
         check_interval: Seconds between checks
     """
-    import sys
-    
-    if len(sys.argv) > 1:
-        vault_path = sys.argv[1]
-    
+    # Use environment variable if vault_path not provided
+    if vault_path is None:
+        vault_path = os.getenv('VAULT_PATH', './AI_Employee_Vault')
+
     watcher = watcher_class(vault_path, check_interval)
     watcher.run()
